@@ -36,14 +36,14 @@ smol-diceware [OPTIONS]
    ```
 3. Build the project using Zig:
    ```sh
-   zig build-exe main.zig
+   zig build
    ```
 
 ## Example
 
 Generate 5 capitalized words separated by a comma:
 ```sh
-./word-gen -l 5 -d "," -c
+./zig-out/bin/smol-diceware -l 5 -d "," -c
 ```
 
 ## License (Unlicense)
