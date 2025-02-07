@@ -1,92 +1,107 @@
 const std = @import("std");
-
-const word_list = @embedFile("eff_long_wordlist.txt");
+const word_list = @import("word_list.zig");
 
 const help_text =
-   \\Usage: word-gen [OPTIONS]
-   \\
-   \\Options:
-   \\  -l, --length <LENGTH>        How many words to generate [default: 3]
-   \\  -d, --delimiter <DELIMITER>  Delimiter to use for joining words
-   \\  -c, --capitalize            Capitalize words
-   \\  -h, --help                  Print help
-   \\
+    \\Usage: word-gen [OPTIONS]
+    \\
+    \\Options:
+    \\  -l, --length <LENGTH>        How many words to generate [default: 3]
+    \\  -d, --delimiter <DELIMITER>  Delimiter to use for joining words
+    \\  -c, --capitalize            Capitalize words
+    \\  -h, --help                  Print help
+    \\
 ;
 
-pub fn main() !void {
-   var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-   const allocator = gpa.allocator();
-   defer _ = gpa.deinit();
+const Error = error{
+    InvalidArgument,
+    OutOfRange,
+    Overflow, // Added for parseInt
+    InvalidCharacter, // Added for parseInt
+};
 
-   const args = try std.process.argsAlloc(allocator);
-   defer std.process.argsFree(allocator, args);
+const Config = struct {
+    length: usize = 3,
+    delimiter: []const u8 = " ",
+    capitalize: bool = false,
+    show_help: bool = false,
+};
 
-   var length: usize = 3;
-   var delimiter: []const u8 = " ";
-   var capitalize = false;
-   
-   var i: usize = 1;
-   while (i < args.len) : (i += 1) {
-       const arg = args[i];
-       if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
-           try std.io.getStdOut().writer().print("{s}", .{help_text});
-           return;
-       } else if (std.mem.eql(u8, arg, "-l") or std.mem.eql(u8, arg, "--length")) {
-           i += 1;
-           if (i >= args.len) {
-               std.debug.print("Error: Missing value for length\n", .{});
-               return error.InvalidArgument;
-           }
-           length = try std.fmt.parseInt(usize, args[i], 10);
-       } else if (std.mem.eql(u8, arg, "-d") or std.mem.eql(u8, arg, "--delimiter")) {
-           i += 1;
-           if (i >= args.len) {
-               std.debug.print("Error: Missing value for delimiter\n", .{});
-               return error.InvalidArgument;
-           }
-           delimiter = args[i];
-       } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--capitalize")) {
-           capitalize = true;
-       }
-   }
+fn parseArgs(iterator: *std.process.ArgIterator) Error!Config {
+    var config = Config{};
 
-   // Count total words
-   var words = std.mem.tokenize(u8, word_list, "\n");
-   var word_count: usize = 0;
-   while (words.next()) |_| word_count += 1;
+    while (iterator.next()) |arg| {
+        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+            config.show_help = true;
+            return config;
+        } else if (std.mem.eql(u8, arg, "-l") or std.mem.eql(u8, arg, "--length")) {
+            const len_str = iterator.next() orelse {
+                std.debug.print("Error: Missing value for length\n", .{});
+                return Error.InvalidArgument;
+            };
+            config.length = try std.fmt.parseInt(usize, len_str, 10);
+        } else if (std.mem.startsWith(u8, arg, "-d")) {
+            config.delimiter = if (arg.len > 2)
+                arg[2..] // Handle -d'x' case
+            else
+                iterator.next() orelse { // Handle -d 'x' case
+                    std.debug.print("Error: Missing value for delimiter\n", .{});
+                    return Error.InvalidArgument;
+                };
+        } else if (std.mem.startsWith(u8, arg, "--delimiter=")) {
+            config.delimiter = arg[11..];
+        } else if (std.mem.eql(u8, arg, "--delimiter")) {
+            config.delimiter = iterator.next() orelse {
+                std.debug.print("Error: Missing value for delimiter\n", .{});
+                return Error.InvalidArgument;
+            };
+        } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--capitalize")) {
+            config.capitalize = true;
+        }
+    }
 
-   // Generate and print words
-   var word_list_array = std.ArrayList([]const u8).init(allocator);
-   defer word_list_array.deinit();
-
-   var j: usize = 0;
-   while (j < length) : (j += 1) {
-       words = std.mem.tokenize(u8, word_list, "\n");
-       const idx = std.crypto.random.intRangeAtMost(usize, 0, word_count - 1);
-       
-       var k: usize = 0;
-       while (words.next()) |word| : (k += 1) {
-           if (k == idx) {
-               if (capitalize) {
-                   var cap_word = try allocator.alloc(u8, word.len);
-                   defer allocator.free(cap_word);
-                   std.mem.copy(u8, cap_word, word);
-                   cap_word[0] = std.ascii.toUpper(cap_word[0]);
-                   try word_list_array.append(cap_word);
-               } else {
-                   try word_list_array.append(word);
-               }
-               break;
-           }
-       }
-   }
-
-   // Join and print words
-   for (word_list_array.items, 0..) |word, index| {
-       try std.io.getStdOut().writer().print("{s}", .{word});
-       if (index < word_list_array.items.len - 1) {
-           try std.io.getStdOut().writer().print("{s}", .{delimiter});
-       }
-   }
-   try std.io.getStdOut().writer().print("\n", .{});
+    return config;
 }
+
+pub fn main() !void {
+    var arg_iterator = std.process.args();
+    _ = arg_iterator.skip(); // Skip executable name
+
+    const config = try parseArgs(&arg_iterator);
+
+    if (config.show_help) {
+        try std.io.getStdOut().writer().print("{s}", .{help_text});
+        return;
+    }
+
+    const word_count = word_list.WORD_LIST.len;
+    if (word_count == 0) {
+        std.debug.print("Error: Word list is empty\n", .{});
+        return Error.InvalidArgument;
+    }
+
+    var stdout = std.io.getStdOut().writer();
+    var i: usize = 0;
+    while (i < config.length) : (i += 1) {
+        const idx = std.crypto.random.intRangeAtMost(usize, 0, word_count - 1);
+        var word = word_list.WORD_LIST[idx];
+
+        if (config.capitalize) {
+            var buffer: [128]u8 = undefined;
+            if (word.len > buffer.len) {
+                return Error.OutOfRange;
+            }
+            @memcpy(buffer[0..word.len], word);
+            if (word.len > 0) {
+                buffer[0] = std.ascii.toUpper(buffer[0]);
+            }
+            word = buffer[0..word.len];
+        }
+
+        try stdout.print("{s}", .{word});
+        if (i < config.length - 1) {
+            try stdout.print("{s}", .{config.delimiter});
+        }
+    }
+    try stdout.print("\n", .{});
+}
+
