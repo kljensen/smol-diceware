@@ -1,15 +1,18 @@
-# Smol Diceware
+<h1 align="center">🎲 Smol Diceware 🎲</h1>
 
-This is a [diceware](https://en.wikipedia.org/wiki/Diceware) implementation
-in zig that is designed to be small and fast. It uses only the [Zig](https://ziglang.org/)
-standard library.
+<div align="center">
+
+A tiny-ish and fast-ish [Diceware](https://en.wikipedia.org/wiki/Diceware) implementation in
+[Zig](https://ziglang.org/).
+No dependencies outside the Zig standard library.
+
+</div>
 
 ## Features
 
 - Generate a specified number of random words.
 - Choose a custom delimiter to separate words.
 - Option to capitalize the generated words.
-- Display help information for usage.
 
 ## Usage
 
