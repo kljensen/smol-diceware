@@ -31,7 +31,7 @@ smol-diceware [OPTIONS]
 
 1. Clone the repository:
    ```sh
-   git clone <repository-url>
+   git clone https://github.com/kljensen/smol-diceware
    ```
 2. Navigate to the project directory:
    ```sh
@@ -46,7 +46,8 @@ smol-diceware [OPTIONS]
 
 Generate 5 capitalized words separated by a comma:
 ```sh
-./zig-out/bin/smol-diceware -l 5 -d "," -c
+$ ./zig-out/bin/smol-diceware -l 5 -d "," -c
+Feisty,Overhung,Cusp,Squire,Tiger
 ```
 
 ## License (Unlicense)
