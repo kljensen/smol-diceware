@@ -2,3 +2,5 @@ aider*
 .aider*
 main.o
 main
+zig-out
+.zig-cache
