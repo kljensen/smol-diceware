@@ -6,7 +6,9 @@ const help_text =
     \\
     \\Options:
     \\  -l, --length <LENGTH>        How many words to generate [default: 3]
-    \\  -d, --delimiter <DELIMITER>  Delimiter to use for joining words
+    \\      --length=<LENGTH>       Alternate form for specifying length
+    \\  -d, --delimiter <DELIMITER> Delimiter to use for joining words
+    \\      --delimiter=<DELIMITER> Alternate form for specifying delimiter
     \\  -c, --capitalize            Capitalize words
     \\  -h, --help                  Print help
     \\
@@ -15,8 +17,8 @@ const help_text =
 const Error = error{
     InvalidArgument,
     OutOfRange,
-    Overflow, // Added for parseInt
-    InvalidCharacter, // Added for parseInt
+    Overflow,         // For parseInt errors
+    InvalidCharacter, // For parseInt errors
 };
 
 const Config = struct {
@@ -30,32 +32,73 @@ fn parseArgs(iterator: *std.process.ArgIterator) Error!Config {
     var config = Config{};
 
     while (iterator.next()) |arg| {
+        // --help / -h
         if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
             config.show_help = true;
             return config;
-        } else if (std.mem.eql(u8, arg, "-l") or std.mem.eql(u8, arg, "--length")) {
+        }
+
+        // --length=<num>
+        else if (std.mem.startsWith(u8, arg, "--length=")) {
+            const len_str = arg[9..]; // everything after `--length=`
+            const parse_result = std.fmt.parseInt(usize, len_str, 10) catch {
+                std.debug.print("Error: '{s}' is not a valid integer for --length\n", .{len_str});
+                return Error.InvalidArgument;
+            };
+            config.length = parse_result;
+        }
+
+        // --length (next token)
+        else if (std.mem.eql(u8, arg, "--length") or std.mem.eql(u8, arg, "-l")) {
             const len_str = iterator.next() orelse {
                 std.debug.print("Error: Missing value for length\n", .{});
                 return Error.InvalidArgument;
             };
-            config.length = try std.fmt.parseInt(usize, len_str, 10);
-        } else if (std.mem.startsWith(u8, arg, "-d")) {
-            config.delimiter = if (arg.len > 2)
-                arg[2..] // Handle -d'x' case
-            else
-                iterator.next() orelse { // Handle -d 'x' case
-                    std.debug.print("Error: Missing value for delimiter\n", .{});
-                    return Error.InvalidArgument;
-                };
-        } else if (std.mem.startsWith(u8, arg, "--delimiter=")) {
-            config.delimiter = arg[11..];
-        } else if (std.mem.eql(u8, arg, "--delimiter")) {
-            config.delimiter = iterator.next() orelse {
+            const parse_result = std.fmt.parseInt(usize, len_str, 10) catch {
+                std.debug.print("Error: '{s}' is not a valid integer for length\n", .{len_str});
+                return Error.InvalidArgument;
+            };
+            config.length = parse_result;
+        }
+
+        // --delimiter=<delim>
+        else if (std.mem.startsWith(u8, arg, "--delimiter=")) {
+            config.delimiter = arg[11..]; // everything after `--delimiter=`
+        }
+
+        // --delimiter (next token)
+        else if (std.mem.eql(u8, arg, "--delimiter")) {
+            const delim_str = iterator.next() orelse {
                 std.debug.print("Error: Missing value for delimiter\n", .{});
                 return Error.InvalidArgument;
             };
-        } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--capitalize")) {
+            config.delimiter = delim_str;
+        }
+
+        // -d (next token), e.g. `-d ,`
+        else if (std.mem.eql(u8, arg, "-d")) {
+            const delim_str = iterator.next() orelse {
+                std.debug.print("Error: Missing value for delimiter\n", .{});
+                return Error.InvalidArgument;
+            };
+            config.delimiter = delim_str;
+        }
+
+        // -dXYZ (no space after)
+        else if (std.mem.startsWith(u8, arg, "-d") and arg.len > 2) {
+            // e.g. `-d,`
+            config.delimiter = arg[2..];
+        }
+
+        // -c / --capitalize
+        else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--capitalize")) {
             config.capitalize = true;
+        }
+
+        // Unknown argument
+        else {
+            std.debug.print("Error: Unknown argument: '{s}'\n", .{arg});
+            return Error.InvalidArgument;
         }
     }
 
@@ -80,11 +123,14 @@ pub fn main() !void {
     }
 
     var stdout = std.io.getStdOut().writer();
+
+    // Generate and print the requested number of words
     var i: usize = 0;
     while (i < config.length) : (i += 1) {
         const idx = std.crypto.random.intRangeAtMost(usize, 0, word_count - 1);
         var word = word_list.WORD_LIST[idx];
 
+        // Capitalize if requested
         if (config.capitalize) {
             var buffer: [128]u8 = undefined;
             if (word.len > buffer.len) {
@@ -98,10 +144,12 @@ pub fn main() !void {
         }
 
         try stdout.print("{s}", .{word});
+
+        // Print delimiter unless we're at the last word
         if (i < config.length - 1) {
             try stdout.print("{s}", .{config.delimiter});
         }
     }
+
     try stdout.print("\n", .{});
 }
-
