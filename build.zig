@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("smol-diceware", "main.zig");
@@ -8,5 +8,5 @@ pub fn build(b: *std.build.Builder) void {
     exe.install();
 
     const run_cmd = exe.run();
-    run_cmd.step.dependOn(b.getInstallStep());
+    run_cmd.step.dependOn(&b.getInstallStep());
 }
