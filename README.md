@@ -35,7 +35,7 @@ smol-diceware [OPTIONS]
    ```
 2. Navigate to the project directory:
    ```sh
-   cd <project-directory>
+   cd smol-diceware
    ```
 3. Build the project using Zig:
    ```sh
