@@ -13,6 +13,7 @@ No dependencies outside the Zig standard library.
 - Generate a specified number of random words.
 - Choose a custom delimiter to separate words.
 - Option to capitalize the generated words.
+- Uses the EFF long word list, which is built into the binary.
 
 ## Usage
 
